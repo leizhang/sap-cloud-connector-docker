@@ -10,6 +10,7 @@ LABEL com.nabisoft.sapcc.sapjvm.version="8.1.062"
 # Upgrade + install dependencies
 ################################################################
 #RUN yum -y upgrade
+RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf
 RUN yum -y install initscripts which unzip wget net-tools less
 
 ################################################################
@@ -120,3 +121,32 @@ CMD /opt/sapjvm_8/bin/java \
 # downloaded from https://tools.hana.ondemand.com/#cloud, i.e. sapcc-2.12.3-windows-x64.zip, sapcc-2.12.3-linux-x64.tar.gz, sapcc-2.12.3-macosx-x64.tar.gz
 # To verify this, simply extract any of these archives and check the files "deamon.sh" and "props.ini".
 # The first 4 option in CMD are derived from deamon.sh, all other options are derived from the props.ini file.
+
+# Install Tomcat
+ENV TOMCAT_MAJOR 9
+ENV TOMCAT_VERSION 9.0.31
+
+RUN wget http://mirror.linux-ia64.org/apache/tomcat/tomcat-${TOMCAT_MAJOR}/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz && \
+ tar -xvf apache-tomcat-${TOMCAT_VERSION}.tar.gz && \
+ rm apache-tomcat*.tar.gz && \
+ mv apache-tomcat* ${CATALINA_HOME}
+
+RUN chmod +x ${CATALINA_HOME}/bin/*sh
+
+# Create Tomcat admin user
+ADD create_admin_user.sh $CATALINA_HOME/scripts/create_admin_user.sh
+ADD tomcat.sh $CATALINA_HOME/scripts/tomcat.sh
+RUN chmod +x $CATALINA_HOME/scripts/*.sh
+
+# Create tomcat user
+RUN groupadd -r tomcat && \
+ useradd -g tomcat -d ${CATALINA_HOME} -s /sbin/nologin  -c "Tomcat user" tomcat && \
+ chown -R tomcat:tomcat ${CATALINA_HOME}
+
+WORKDIR /opt/tomcat
+
+EXPOSE 8080
+EXPOSE 8009
+
+USER tomcat
+CMD ["tomcat.sh"]
